@@ -452,7 +452,9 @@ class DeepseekV2Attention(nn.Module):
                 quant_config=quant_config,
                 prefix=f"{prefix}.q_a_proj",
             )
-            self.q_a_layernorm = RMSNorm(self.q_lora_rank, eps=config.rms_norm_eps)
+            self.q_a_layernorm = RMSNorm(
+                self.q_lora_rank, eps=config.rms_norm_eps
+            ) if getattr(config, 'qk_latent_layernorm', True) else None
             self.q_b_proj = ColumnParallelLinear(
                 q_lora_rank,
                 self.num_heads * self.qk_head_dim,
@@ -476,7 +478,9 @@ class DeepseekV2Attention(nn.Module):
             quant_config=quant_config,
             prefix=f"{prefix}.kv_a_proj_with_mqa",
         )
-        self.kv_a_layernorm = RMSNorm(self.kv_lora_rank, eps=config.rms_norm_eps)
+        self.kv_a_layernorm = RMSNorm(
+            self.kv_lora_rank, eps=config.rms_norm_eps
+        ) if getattr(config, 'qk_latent_layernorm', True) else None
         self.kv_b_proj = ColumnParallelLinear(
             self.kv_lora_rank,
             self.num_heads * (self.qk_nope_head_dim + self.v_head_dim),
@@ -533,7 +537,8 @@ class DeepseekV2Attention(nn.Module):
     ) -> torch.Tensor:
         if self.q_lora_rank is not None:
             q = self.q_a_proj(hidden_states)[0]
-            q = self.q_a_layernorm(q)
+            if self.q_a_layernorm is not None:
+                q = self.q_a_layernorm(q)
             q = self.q_b_proj(q)[0].view(-1, self.num_local_heads, self.qk_head_dim)
         else:
             q = self.q_proj(hidden_states)[0].view(
@@ -543,7 +548,8 @@ class DeepseekV2Attention(nn.Module):
         latent_cache = self.kv_a_proj_with_mqa(hidden_states)[0]
         kv_a, _ = latent_cache.split([self.kv_lora_rank, self.qk_rope_head_dim], dim=-1)
         latent_cache = latent_cache.unsqueeze(1)
-        kv_a = self.kv_a_layernorm(kv_a)
+        if self.kv_a_layernorm is not None:
+            kv_a = self.kv_a_layernorm(kv_a)
         kv = self.kv_b_proj(kv_a)[0]
         kv = kv.view(-1, self.num_local_heads, self.qk_nope_head_dim + self.v_head_dim)
         k_nope, v = kv.split([self.qk_nope_head_dim, self.v_head_dim], dim=-1)
@@ -822,11 +828,12 @@ class DeepSeekV2FusedQkvAProjLinear(MergedColumnParallelLinear):
         output_size: list[int],
         quant_config: QuantizationConfig | None = None,
         prefix: str = "",
+        bias: bool = False,
     ):
         super().__init__(
             input_size,
             output_size,
-            bias=False,
+            bias=bias,
             quant_config=quant_config,
             disable_tp=True,
             prefix=prefix,
@@ -911,13 +918,20 @@ class DeepseekV2MLAAttention(nn.Module):
         # otherwise default to hidden_size (used in Eagle3 Deepseek with MLA)
         proj_input_size = input_size if input_size is not None else self.hidden_size
 
+        attention_bias = getattr(config, 'attention_bias', False)
+
         if self.q_lora_rank is not None:
             self.fused_qkv_a_proj = DeepSeekV2FusedQkvAProjLinear(
                 proj_input_size,
                 [self.q_lora_rank, self.kv_lora_rank + self.qk_rope_head_dim],
                 quant_config=quant_config,
                 prefix=f"{prefix}.fused_qkv_a_proj",
+                bias=attention_bias,
             )
+            # q_a_proj has no bias in checkpoint; only kv_a_proj_with_mqa has bias.
+            # Zero out the q_a_proj portion of the fused bias to prevent garbage.
+            if self.fused_qkv_a_proj.bias is not None:
+                self.fused_qkv_a_proj.bias.data[:self.q_lora_rank].zero_()
         else:
             self.kv_a_proj_with_mqa = ReplicatedLinear(
                 proj_input_size,
@@ -928,11 +942,13 @@ class DeepseekV2MLAAttention(nn.Module):
             )
 
         if self.q_lora_rank is not None:
-            self.q_a_layernorm = RMSNorm(self.q_lora_rank, eps=config.rms_norm_eps)
+            self.q_a_layernorm = RMSNorm(
+                self.q_lora_rank, eps=config.rms_norm_eps
+            ) if getattr(config, 'qk_latent_layernorm', True) else None
             self.q_b_proj = ColumnParallelLinear(
                 self.q_lora_rank,
                 self.num_heads * self.qk_head_dim,
-                bias=False,
+                bias=attention_bias,
                 quant_config=quant_config,
                 prefix=f"{prefix}.q_b_proj",
             )
@@ -944,7 +960,9 @@ class DeepseekV2MLAAttention(nn.Module):
                 quant_config=quant_config,
                 prefix=f"{prefix}.q_proj",
             )
-        self.kv_a_layernorm = RMSNorm(self.kv_lora_rank, eps=config.rms_norm_eps)
+        self.kv_a_layernorm = RMSNorm(
+            self.kv_lora_rank, eps=config.rms_norm_eps
+        ) if getattr(config, 'qk_latent_layernorm', True) else None
         self.kv_b_proj = ColumnParallelLinear(
             self.kv_lora_rank,
             self.num_heads * (self.qk_nope_head_dim + self.v_head_dim),
@@ -955,7 +973,7 @@ class DeepseekV2MLAAttention(nn.Module):
         self.o_proj = RowParallelLinear(
             self.num_heads * self.v_head_dim,
             self.hidden_size,
-            bias=False,
+            bias=attention_bias,
             quant_config=quant_config,
             prefix=f"{prefix}.o_proj",
         )

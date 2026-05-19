@@ -14,7 +14,7 @@ from vllm.model_executor.layers.quantization import QuantizationConfig
 class MLAModules:
     """Modules used in MLA."""
 
-    kv_a_layernorm: torch.nn.Module
+    kv_a_layernorm: torch.nn.Module | None
     kv_b_proj: torch.nn.Module
     rotary_emb: torch.nn.Module
     o_proj: torch.nn.Module
