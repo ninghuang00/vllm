@@ -1108,6 +1108,7 @@ class ModelConfig:
             "longcat_flash",
             "pangu_ultra_moe",
             "pangu_ultra_moe_mtp",
+            "YouZhi",
         ):
             return self.hf_text_config.kv_lora_rank is not None
         elif self.hf_text_config.model_type == "eagle":
