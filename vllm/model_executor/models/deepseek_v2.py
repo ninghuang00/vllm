@@ -810,13 +810,14 @@ class DeepSeekV2FusedQkvAProjLinear(MergedColumnParallelLinear):
         self,
         input_size: int,
         output_size: list[int],
+        bias: bool = False,
         quant_config: QuantizationConfig | None = None,
         prefix: str = "",
     ):
         super().__init__(
             input_size,
             output_size,
-            bias=False,
+            bias=bias,
             quant_config=quant_config,
             disable_tp=True,
             prefix=prefix,
@@ -896,6 +897,7 @@ class DeepseekV2MLAAttention(nn.Module):
 
         self.scaling = self.qk_head_dim**-0.5
         self.max_position_embeddings = max_position_embeddings
+        self.attention_bias = getattr(config, "attention_bias", False)
 
         # Use input_size for projection input dimensions if provided,
         # otherwise default to hidden_size (used in Eagle3 Deepseek with MLA)
@@ -905,6 +907,7 @@ class DeepseekV2MLAAttention(nn.Module):
             self.fused_qkv_a_proj = DeepSeekV2FusedQkvAProjLinear(
                 proj_input_size,
                 [self.q_lora_rank, self.kv_lora_rank + self.qk_rope_head_dim],
+                bias=self.attention_bias,
                 quant_config=quant_config,
                 prefix=f"{prefix}.fused_qkv_a_proj",
             )
@@ -912,7 +915,7 @@ class DeepseekV2MLAAttention(nn.Module):
             self.kv_a_proj_with_mqa = ReplicatedLinear(
                 proj_input_size,
                 self.kv_lora_rank + self.qk_rope_head_dim,
-                bias=False,
+                bias=self.attention_bias,
                 quant_config=quant_config,
                 prefix=f"{prefix}.kv_a_proj_with_mqa",
             )
@@ -922,7 +925,7 @@ class DeepseekV2MLAAttention(nn.Module):
             self.q_b_proj = ColumnParallelLinear(
                 self.q_lora_rank,
                 self.num_heads * self.qk_head_dim,
-                bias=False,
+                bias=self.attention_bias,
                 quant_config=quant_config,
                 prefix=f"{prefix}.q_b_proj",
             )
@@ -945,7 +948,7 @@ class DeepseekV2MLAAttention(nn.Module):
         self.o_proj = RowParallelLinear(
             self.num_heads * self.v_head_dim,
             self.hidden_size,
-            bias=False,
+            bias=self.attention_bias,
             quant_config=quant_config,
             prefix=f"{prefix}.o_proj",
         )
