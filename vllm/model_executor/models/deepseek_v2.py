@@ -954,12 +954,13 @@ class DeepseekV2MLAAttention(nn.Module):
 
         self.scaling = self.qk_head_dim**-0.5
         self.max_position_embeddings = max_position_embeddings
+        self.attention_bias = getattr(config, "attention_bias", False)
 
         if self.q_lora_rank is not None:
             self.fused_qkv_a_proj = MergedColumnParallelLinear(
                 self.hidden_size,
                 [self.q_lora_rank, self.kv_lora_rank + self.qk_rope_head_dim],
-                bias=False,
+                bias=self.attention_bias,
                 quant_config=quant_config,
                 prefix=f"{prefix}.fused_qkv_a_proj",
                 disable_tp=True,
@@ -968,7 +969,7 @@ class DeepseekV2MLAAttention(nn.Module):
             self.kv_a_proj_with_mqa = ReplicatedLinear(
                 self.hidden_size,
                 self.kv_lora_rank + self.qk_rope_head_dim,
-                bias=False,
+                bias=self.attention_bias,
                 quant_config=quant_config,
                 prefix=f"{prefix}.kv_a_proj_with_mqa",
             )
@@ -978,7 +979,7 @@ class DeepseekV2MLAAttention(nn.Module):
             self.q_b_proj = ColumnParallelLinear(
                 self.q_lora_rank,
                 self.num_heads * self.qk_head_dim,
-                bias=False,
+                bias=self.attention_bias,
                 quant_config=quant_config,
                 prefix=f"{prefix}.q_b_proj",
             )
@@ -1001,7 +1002,7 @@ class DeepseekV2MLAAttention(nn.Module):
         self.o_proj = RowParallelLinear(
             self.num_heads * self.v_head_dim,
             self.hidden_size,
-            bias=False,
+            bias=self.attention_bias,
             quant_config=quant_config,
             prefix=f"{prefix}.o_proj",
         )
