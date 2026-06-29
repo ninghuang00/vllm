@@ -35,13 +35,16 @@ class YouZhiForCausalLM(DeepseekV2ForCausalLM):
         config = vllm_config.model_config.hf_config
         qk_latent_layernorm = getattr(config, "qk_latent_layernorm", True)
 
-        if not qk_latent_layernorm:
-            self._skip_layernorm_names = set()
-            for layer in self.model.layers:
-                if isinstance(layer, PPMissingLayer):
-                    continue
-                attn = layer.self_attn
-                if isinstance(attn, DeepseekV2MLAAttention):
+        self._skip_layernorm_names = set()
+        for layer in self.model.layers:
+            if isinstance(layer, PPMissingLayer):
+                continue
+            attn = layer.self_attn
+            if isinstance(attn, DeepseekV2MLAAttention):
+                head_dim = getattr(config, "head_dim", 128)
+                attn.k_norm = RMSNorm(head_dim, eps=config.rms_norm_eps)
+                attn.q_norm = RMSNorm(head_dim, eps=config.rms_norm_eps)
+                if not qk_latent_layernorm:
                     impl = attn.mla_attn.mla_attn.impl
                     if attn.q_lora_rank is not None:
                         new_q_a_ln = YouZhiRMSNorm(
@@ -66,8 +69,6 @@ class YouZhiForCausalLM(DeepseekV2ForCausalLM):
                     self._skip_layernorm_names.add(
                         f"model.layers.{layer.layer_idx}.self_attn.kv_a_layernorm.weight"
                     )
-        else:
-            self._skip_layernorm_names = set()
 
     def load_weights(self, weights):
         loaded_params = super().load_weights(weights)

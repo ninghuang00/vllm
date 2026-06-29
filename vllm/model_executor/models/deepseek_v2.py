@@ -474,6 +474,9 @@ class DeepseekV2Attention(nn.Module):
             quant_config=quant_config,
             prefix=f"{prefix}.kv_a_proj_with_mqa",
         )
+        head_dim = getattr(config, "head_dim", 128)
+        self.k_norm = RMSNorm(head_dim, eps=config.rms_norm_eps)
+        self.q_norm = RMSNorm(head_dim, eps=config.rms_norm_eps)
         self.kv_a_layernorm = RMSNorm(self.kv_lora_rank, eps=config.rms_norm_eps)
         self.kv_b_proj = ColumnParallelLinear(
             self.kv_lora_rank,
