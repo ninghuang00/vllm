@@ -41,9 +41,6 @@ class YouZhiForCausalLM(DeepseekV2ForCausalLM):
                 continue
             attn = layer.self_attn
             if isinstance(attn, DeepseekV2MLAAttention):
-                head_dim = getattr(config, "head_dim", 128)
-                attn.k_norm = RMSNorm(head_dim, eps=config.rms_norm_eps)
-                attn.q_norm = RMSNorm(head_dim, eps=config.rms_norm_eps)
                 if not qk_latent_layernorm:
                     impl = attn.mla_attn.mla_attn.impl
                     if attn.q_lora_rank is not None:

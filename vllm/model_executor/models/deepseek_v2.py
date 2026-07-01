@@ -862,6 +862,27 @@ class DeepSeekV2FusedQkvAProjLinear(MergedColumnParallelLinear):
             return super().forward(input_)
 
 
+class Qwen3RMSNorm(nn.Module):
+    def __init__(self, hidden_size, eps=1e-6):
+        """
+        Qwen3RMSNorm is equivalent to T5LayerNorm
+        """
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(hidden_size))
+        self.variance_epsilon = eps
+
+    def forward(self, hidden_states):
+        input_dtype = hidden_states.dtype
+        # print(input_dtype)
+        hidden_states = hidden_states.to(torch.float32)
+        variance = hidden_states.pow(2).mean(-1, keepdim=True)
+        hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+        return (self.weight.to(input_dtype))  * hidden_states.to(input_dtype)
+
+    def extra_repr(self):
+        return f"{tuple(self.weight.shape)}, eps={self.variance_epsilon}"
+
+
 class DeepseekV2MLAAttention(nn.Module):
     """
     Main reference: DeepseekV2 paper, and FlashInfer Implementation
@@ -906,6 +927,11 @@ class DeepseekV2MLAAttention(nn.Module):
 
         self.scaling = self.qk_head_dim**-0.5
         self.max_position_embeddings = max_position_embeddings
+
+        head_dim = getattr(config, "head_dim", 128)
+        self.q_norm = Qwen3RMSNorm(head_dim, eps=config.rms_norm_eps)  # unlike olmo, only on the head dim!
+        self.k_norm = Qwen3RMSNorm(head_dim, eps=config.rms_norm_eps)  # thus post q_norm does not need reshape
+
 
         # Use input_size for projection input dimensions if provided,
         # otherwise default to hidden_size (used in Eagle3 Deepseek with MLA)
@@ -1040,6 +1066,8 @@ class DeepseekV2MLAAttention(nn.Module):
             indexer_rotary_emb=self.indexer_rope_emb,
             is_sparse=self.is_v32,
             topk_indices_buffer=topk_indices_buffer,
+            q_norm=self.q_norm,
+            k_norm=self.k_norm,
         )
 
         self.mla_attn = MultiHeadLatentAttentionWrapper(
@@ -1200,6 +1228,10 @@ class DeepseekV2DecoderLayer(nn.Module):
 
         return hidden_states, residual
 
+def hnlog(msg, tensor):
+    print("=====> hntest <==== ", msg)
+    print(tensor.shape)
+    print(tensor)
 
 @support_torch_compile
 class DeepseekV2Model(nn.Module):
@@ -1310,6 +1342,8 @@ class DeepseekV2Model(nn.Module):
             islice(self.layers, self.start_layer, self.end_layer),
             start=self.start_layer,
         ):
+            hnlog(f"layer idx: {idx}", torch.zeros(1,1))
+            hnlog("hidden_states", hidden_states)
             if idx in self.aux_hidden_state_layers:
                 aux_hidden_states.append(hidden_states + residual)
             hidden_states, residual = layer(

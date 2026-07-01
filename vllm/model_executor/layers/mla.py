@@ -27,6 +27,8 @@ class MLAModules:
     is_sparse: bool
     topk_indices_buffer: torch.Tensor | None
     indexer_rotary_emb: torch.nn.Module | None = None
+    q_norm: torch.nn.Module | None = None
+    k_norm: torch.nn.Module | None = None
 
 
 # --8<-- [start:multi_head_latent_attention]
@@ -87,6 +89,8 @@ class MultiHeadLatentAttentionWrapper(PluggableLayer):
         self.indexer = mla_modules.indexer
         self.indexer_rope_emb = mla_modules.indexer_rotary_emb
         self.is_sparse = mla_modules.is_sparse
+        self.q_norm = mla_modules.q_norm
+        self.k_norm = mla_modules.k_norm
 
         # Whether to skip top-k token selection computation in this layer.
         # When True, the indexer will not be called, and the layer will reuse
@@ -112,6 +116,8 @@ class MultiHeadLatentAttentionWrapper(PluggableLayer):
             kv_b_proj=self.kv_b_proj,
             use_sparse=self.is_sparse,
             indexer=self.indexer,
+            q_norm = self.q_norm,
+            k_norm = self.k_norm,
         )
 
         self.prefix = prefix
