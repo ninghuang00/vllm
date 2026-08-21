@@ -1007,6 +1007,7 @@ class MLAAttention(nn.Module, AttentionLayerBase):
             head_size=self.head_size,
             dtype=kv_cache_dtype,
             cache_dtype_str=vllm_config.cache_config.cache_dtype,
+            qk_rope_head_dim=self.qk_rope_head_dim,
         )
 
     def _v_up_proj(self, x: torch.Tensor, out: torch.Tensor):

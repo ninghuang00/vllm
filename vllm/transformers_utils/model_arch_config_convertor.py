@@ -272,6 +272,7 @@ class ModelArchConfigConvertorBase:
             "pangu_ultra_moe_mtp",
             "bailing_hybrid",
             "bailing_hybrid_mtp",
+            "qwen3_5_moe_text",
         ):
             # check is deepseek_v4 model
             if hasattr(self.hf_text_config, "compress_ratios"):

@@ -367,6 +367,9 @@ class MLAAttentionSpec(FullAttentionSpec):
     alignment: int | None = None  # Default to None for no padding.
     compress_ratio: int = 1  # Default to 1 for no compression.
     model_version: str | None = None
+    # Size of the RoPE portion of head_size; the remainder is kv_lora_rank.
+    # Used by Ascend MLA spec for hybrid model page-size alignment.
+    qk_rope_head_dim: int = 0
 
     def __post_init__(self):
         super().__post_init__()
@@ -427,6 +430,7 @@ class MLAAttentionSpec(FullAttentionSpec):
             cache_dtype_str=cache_dtype_str_set.pop(),
             compress_ratio=compress_ratio_set.pop(),
             model_version=model_version_set.pop(),
+            qk_rope_head_dim=specs[0].qk_rope_head_dim,
         )
 
 
