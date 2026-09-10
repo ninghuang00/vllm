@@ -90,6 +90,7 @@ _CONFIG_REGISTRY: dict[str, type[PretrainedConfig]] = LazyConfigDict(
     flex_olmo="FlexOlmoConfig",
     fireredlid="FireRedLIDConfig",
     funaudiochat="FunAudioChatConfig",
+    glm4_moe_lite_plus_plus="Glm4MoeLitePlusPlusConfig",
     granite4_vision="Granite4VisionConfig",
     hyperclovax="HyperCLOVAXConfig",
     hyperclovax_vlm="HCXVisionConfig",

@@ -113,6 +113,10 @@ _TEXT_GENERATION_MODELS = {
     "Glm4ForCausalLM": ("glm4", "Glm4ForCausalLM"),
     "Glm4MoeForCausalLM": ("glm4_moe", "Glm4MoeForCausalLM"),
     "Glm4MoeLiteForCausalLM": ("glm4_moe_lite", "Glm4MoeLiteForCausalLM"),
+    "Glm4MoeLitePlusPlusForCausalLM": (
+        "glm4_moe_lite_plus_plus",
+        "Glm4MoeLitePlusPlusForCausalLM",
+    ),
     "GlmMoeDsaForCausalLM": ("deepseek_v2", "GlmMoeDsaForCausalLM"),
     "GptOssForCausalLM": ("gpt_oss", "GptOssForCausalLM"),
     "GPT2LMHeadModel": ("gpt2", "GPT2LMHeadModel"),
