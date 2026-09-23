@@ -1149,6 +1149,7 @@ class MLAAttention(nn.Module, AttentionLayerBase):
             cache_dtype_str=self.kv_cache_dtype,
             kv_quant_mode=get_kv_quant_mode(self.kv_cache_dtype),
             non_causal_multi_token_decode=self.non_causal_multi_token_decode,
+            qk_rope_head_dim=self.qk_rope_head_dim,
         )
 
     def _v_up_proj(self, x: torch.Tensor, out: torch.Tensor):

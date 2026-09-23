@@ -395,6 +395,9 @@ class MLAAttentionSpec(FullAttentionSpec):
     model_version: str | None = None
     # Marks draft groups that flatten a non-causal query block into decode rows.
     non_causal_multi_token_decode: bool = False
+    # Size of the RoPE portion of head_size; the remainder is kv_lora_rank.
+    # Used by Ascend MLA spec for hybrid model page-size alignment.
+    qk_rope_head_dim: int = 0
 
     def __post_init__(self):
         super().__post_init__()
@@ -458,6 +461,7 @@ class MLAAttentionSpec(FullAttentionSpec):
             non_causal_multi_token_decode=any(
                 spec.non_causal_multi_token_decode for spec in specs
             ),
+            qk_rope_head_dim=specs[0].qk_rope_head_dim,
         )
         for spec in specs:
             for f in fields(AttentionSpec):
